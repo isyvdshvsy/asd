@@ -17,11 +17,11 @@ import android.content.pm.ActivityInfo
 import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
-import android.graphics.Color
 import android.graphics.PointF
 import android.graphics.drawable.Icon
 import android.hardware.display.DisplayManager
 import android.net.DhcpInfo
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.*
 import android.util.Log
@@ -30,7 +30,6 @@ import android.util.TypedValue
 import android.view.*
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.getSystemService
 import androidx.core.view.isGone
@@ -48,8 +47,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import emu.skyline.applet.swkbd.SoftwareKeyboardConfig
 import emu.skyline.applet.swkbd.SoftwareKeyboardDialog
+import emu.skyline.data.AOCItemsTag
 import emu.skyline.data.AppItem
 import emu.skyline.data.AppItemTag
+import emu.skyline.data.UpdateItemTag
 import emu.skyline.databinding.EmuActivityBinding
 import emu.skyline.emulation.PipelineLoadingFragment
 import emu.skyline.input.*
@@ -94,6 +95,10 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
      * The [AppItem] of the app that is being emulated
      */
     lateinit var item : AppItem
+
+    lateinit var dlcUris : ArrayList<Uri>
+
+    lateinit var updateUri : Uri
 
     /**
      * The built-in [Vibrator] of the device
@@ -149,7 +154,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
      * @param nativeLibraryPath The full path to the app native library directory
      * @param assetManager The asset manager used for accessing app assets
      */
-    private external fun executeApplication(romUri : String, romType : Int, romFd : Int, nativeSettings : NativeSettings, publicAppFilesPath : String, privateAppFilesPath : String, nativeLibraryPath : String, assetManager : AssetManager)
+    private external fun executeApplication(romUri : String, romType : Int, romFd : Int, dlcFds : IntArray?, updateFd : Int, nativeSettings : NativeSettings, publicAppFilesPath : String, privateAppFilesPath : String, nativeLibraryPath : String, assetManager : AssetManager)
 
     /**
      * @param join If the function should only return after all the threads join or immediately
@@ -251,9 +256,19 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         @SuppressLint("Recycle")
         val romFd = contentResolver.openFileDescriptor(rom, "r")!!
 
+        var dlcFds : IntArray? = null
+        if (dlcUris.isNotEmpty())
+            dlcFds = dlcUris.map { contentResolver.openFileDescriptor(it, "r")!!.detachFd() }.toIntArray()
+
+        var updateFd : Int = -1
+        if (updateUri != Uri.EMPTY) {
+            @SuppressLint("Recycle")
+            updateFd = contentResolver.openFileDescriptor(updateUri, "r")!!.detachFd()
+        }
+
         GpuDriverHelper.ensureFileRedirectDir(this)
         emulationThread = Thread {
-            executeApplication(rom.toString(), romType, romFd.detachFd(), NativeSettings(this, emulationSettings), applicationContext.getPublicFilesDir().canonicalPath + "/", applicationContext.filesDir.canonicalPath + "/", applicationInfo.nativeLibraryDir + "/", assets)
+            executeApplication(rom.toString(), romType, romFd.detachFd(), dlcFds, updateFd, NativeSettings(this, emulationSettings), applicationContext.getPublicFilesDir().canonicalPath + "/", applicationContext.filesDir.canonicalPath + "/", applicationInfo.nativeLibraryDir + "/", assets)
             returnFromEmulation()
         }
 
@@ -265,8 +280,20 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
      */
     private fun populateAppItem() {
         val intentItem = intent.serializable(AppItemTag) as AppItem?
+        val loadedAOCs = intent.serializable(AOCItemsTag) as ArrayList<String>?
+        val loadedUpdate = intent.serializable(UpdateItemTag) as String?
         if (intentItem != null) {
             item = intentItem
+
+            dlcUris = if (loadedAOCs!!.size > 0)
+                loadedAOCs.map { Uri.parse(it) }.toCollection(ArrayList())
+            else
+                ArrayList()
+
+            updateUri = if (loadedUpdate != "")
+                Uri.parse(loadedUpdate)
+            else
+                Uri.EMPTY
             return
         }
 

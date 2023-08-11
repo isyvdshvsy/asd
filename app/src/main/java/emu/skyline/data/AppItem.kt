@@ -20,6 +20,8 @@ import java.io.Serializable
  * The tag used to pass [AppItem]s between activities and fragments
  */
 const val AppItemTag = BuildConfig.APPLICATION_ID + ".APP_ITEM"
+const val AOCItemsTag = BuildConfig.APPLICATION_ID + ".AOC_ITEMS"
+const val UpdateItemTag = BuildConfig.APPLICATION_ID + ".UPDATE_ITEM"
 
 private val missingIcon by lazy { ContextCompat.getDrawable(SkylineApplication.instance, R.drawable.default_icon)!!.toBitmap(256, 256) }
 
