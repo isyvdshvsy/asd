@@ -27,12 +27,18 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import emu.skyline.adapter.*
+import emu.skyline.adapter.AppViewItem
+import emu.skyline.adapter.GenericAdapter
+import emu.skyline.adapter.GridSpacingItemDecoration
+import emu.skyline.adapter.LayoutType
+import emu.skyline.data.AOCItemsTag
 import emu.skyline.data.AppItem
 import emu.skyline.data.AppItemTag
+import emu.skyline.data.UpdateItemTag
 import emu.skyline.databinding.MainActivityBinding
 import emu.skyline.loader.AppEntry
 import emu.skyline.loader.LoaderResult
+import emu.skyline.loader.RomType
 import emu.skyline.provider.DocumentsProvider
 import emu.skyline.settings.AppSettings
 import emu.skyline.settings.EmulationSettings
@@ -217,7 +223,7 @@ class MainActivity : AppCompatActivity() {
     private fun sortGameList(gameList : List<AppEntry>) : List<AppEntry> {
         val sortedApps : MutableList<AppEntry> = mutableListOf()
         gameList.forEach { entry ->
-            if (!appSettings.filterInvalidFiles || entry.loaderResult != LoaderResult.ParsingError)
+            if (!appSettings.filterInvalidFiles || entry.loaderResult != LoaderResult.ParsingError && entry.romType == RomType.Base)
                 sortedApps.add(entry)
         }
         when (appSettings.sortAppsBy) {
@@ -246,11 +252,24 @@ class MainActivity : AppCompatActivity() {
     private fun selectStartGame(appItem : AppItem) {
         if (binding.swipeRefreshLayout.isRefreshing) return
 
+        val dlcUris : ArrayList<String> = ArrayList()
+        var updateUri = ""
+
+        for (entry in appEntries!!) {
+            if (entry.parentTitleId == appItem.titleId && entry.romType == RomType.DLC) {
+                dlcUris.add(entry.uri.toString())
+            } else if (entry.parentTitleId == appItem.titleId && entry.romType == RomType.Update) {
+                updateUri = entry.uri.toString()
+            }
+        }
+
         if (appSettings.selectAction) {
             AppDialog.newInstance(appItem).show(supportFragmentManager, "game")
         } else if (appItem.loaderResult == LoaderResult.Success) {
             startActivity(Intent(this, EmulationActivity::class.java).apply {
                 putExtra(AppItemTag, appItem)
+                putExtra(AOCItemsTag, dlcUris)
+                putExtra(UpdateItemTag, updateUri)
                 putExtra(EmulationActivity.ReturnToMainTag, true)
             })
         }
