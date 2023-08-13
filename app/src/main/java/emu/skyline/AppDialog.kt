@@ -113,7 +113,7 @@ class AppDialog : BottomSheetDialogFragment() {
 
         binding.gamePin.setOnClickListener {
             val info = ShortcutInfo.Builder(context, item.title)
-            info.setShortLabel(item.title)
+            item.title?.let { title -> info.setShortLabel(title) }
             info.setActivity(ComponentName(requireContext(), EmulationActivity::class.java))
             info.setIcon(Icon.createWithAdaptiveBitmap(item.bitmapIcon))
 
